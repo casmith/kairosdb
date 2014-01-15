@@ -77,8 +77,8 @@ public class CassandraDatastore implements Datastore
 	public static final String INDEX_READ_CONSISTENCY_LEVEL = "kairosdb.datastore.cassandra.index_read_consistency_level";
 	public static final String INDEX_WRITE_CONSISTENCY_LEVEL = "kairosdb.datastore.cassandra.index_write_consistency_level";
 
-	public static final String KEYSPACE = "kairosdb";
-	public static final String CF_DATA_POINTS = "data_points";
+	public static final String KEYSPACE = "kairosdb.datastore.cassandra.keyspace";
+    public static final String CF_DATA_POINTS = "data_points";
 	public static final String CF_ROW_KEY_INDEX = "row_key_index";
 	public static final String CF_STRING_INDEX = "string_index";
 
@@ -117,8 +117,7 @@ public class CassandraDatastore implements Datastore
 	@Named(INDEX_READ_CONSISTENCY_LEVEL)
 	private ConsitencyLevel m_indexReadLevel = ConsitencyLevel.ONE;
 
-
-	@Inject
+    @Inject
 	public CassandraDatastore(@Named(CassandraModule.CASSANDRA_AUTH_MAP) Map<String, String> cassandraAuthentication,
 	                          @Named(REPLICATION_FACTOR_PROPERTY) int replicationFactor,
 	                          @Named(SINGLE_ROW_READ_SIZE_PROPERTY) int singleRowReadSize,
@@ -127,6 +126,7 @@ public class CassandraDatastore implements Datastore
 	                          @Named(WRITE_DELAY_PROPERTY) int writeDelay,
 	                          @Named(WRITE_BUFFER_SIZE) int maxWriteSize,
 	                          final @Named("HOSTNAME") String hostname,
+                              @Named(KEYSPACE) String keyspace,
 	                          HectorConfiguration configuration) throws DatastoreException
 	{
 		try
@@ -140,10 +140,10 @@ public class CassandraDatastore implements Datastore
 			m_cluster = HFactory.getOrCreateCluster("kairosdb-cluster",
 					hostConfig, cassandraAuthentication);
 
-			KeyspaceDefinition keyspaceDef = m_cluster.describeKeyspace(KEYSPACE);
+            KeyspaceDefinition keyspaceDef = m_cluster.describeKeyspace(keyspace);
 
 			if (keyspaceDef == null)
-				createSchema(replicationFactor);
+				createSchema(keyspace, replicationFactor);
 
 			ConfigurableConsistencyLevel confConsLevel = new ConfigurableConsistencyLevel();
 
@@ -158,7 +158,7 @@ public class CassandraDatastore implements Datastore
 			confConsLevel.setReadCfConsistencyLevels(readLevels);
 			confConsLevel.setWriteCfConsistencyLevels(writeLevels);
 
-			m_keyspace = HFactory.createKeyspace(KEYSPACE, m_cluster, confConsLevel);
+			m_keyspace = HFactory.createKeyspace(keyspace, m_cluster, confConsLevel);
 
 			ReentrantLock mutatorLock = new ReentrantLock();
 			Condition lockCondition = mutatorLock.newCondition();
@@ -235,21 +235,21 @@ public class CassandraDatastore implements Datastore
 		}
 	}
 
-	private void createSchema(int replicationFactor)
+	private void createSchema(String keyspace, int replicationFactor)
 	{
 		List<ColumnFamilyDefinition> cfDef = new ArrayList<ColumnFamilyDefinition>();
 
 		cfDef.add(HFactory.createColumnFamilyDefinition(
-				KEYSPACE, CF_DATA_POINTS, ComparatorType.BYTESTYPE));
+				keyspace, CF_DATA_POINTS, ComparatorType.BYTESTYPE));
 
 		cfDef.add(HFactory.createColumnFamilyDefinition(
-				KEYSPACE, CF_ROW_KEY_INDEX, ComparatorType.BYTESTYPE));
+				keyspace, CF_ROW_KEY_INDEX, ComparatorType.BYTESTYPE));
 
 		cfDef.add(HFactory.createColumnFamilyDefinition(
-				KEYSPACE, CF_STRING_INDEX, ComparatorType.UTF8TYPE));
+				keyspace, CF_STRING_INDEX, ComparatorType.UTF8TYPE));
 
 		KeyspaceDefinition newKeyspace = HFactory.createKeyspaceDefinition(
-				KEYSPACE, ThriftKsDef.DEF_STRATEGY_CLASS,
+				keyspace, ThriftKsDef.DEF_STRATEGY_CLASS,
 				replicationFactor, cfDef);
 
 		m_cluster.addKeyspace(newKeyspace, true);
